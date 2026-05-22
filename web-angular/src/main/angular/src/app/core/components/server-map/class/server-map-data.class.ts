@@ -39,8 +39,8 @@ export class ServerMapData {
     private linkMap: IShortLinkInfoMap;
     // private mergeStateMap: IStateCheckMap = {};
     private groupServiceTypeMap: IStateCheckMap;
-    private originalNodeMap: INodeInfoMap = {};
-    private originalLinkMap: ILinkInfoMap = {};
+    private originalNodeMap: INodeInfoMap = Object.create(null);
+    private originalLinkMap: ILinkInfoMap = Object.create(null);
 
     constructor(
         private originalNodeList: INodeInfo[],
@@ -60,11 +60,14 @@ export class ServerMapData {
     private initVar(): void {
         this.nodeList = [];
         this.linkList = [];
-        this.mergeableServiceType = {};
-        this.countMap = {};
-        this.nodeMap = {};
-        this.linkMap = {};
-        this.groupServiceTypeMap = {};
+        // Use Object.create(null) for dictionary-like maps so that externally controlled
+        // keys (e.g. `__proto__`, `constructor`, `prototype` coming from node.key /
+        // link.key in API responses) cannot pollute Object.prototype.
+        this.mergeableServiceType = Object.create(null);
+        this.countMap = Object.create(null);
+        this.nodeMap = Object.create(null);
+        this.linkMap = Object.create(null);
+        this.groupServiceTypeMap = Object.create(null);
     }
 
     private init() {
@@ -176,9 +179,11 @@ export class ServerMapData {
 
     private mergeNodes(): void {
         // console.time('mergeGroup()');
-        const collectMergeLink: { [key: string]: any } = {};
-        const removeNodeKeys: IStateCheckMap = {};
-        const removeLinkKeys: IStateCheckMap = {};
+        // Use prototype-less objects to guard against prototype pollution from
+        // externally controlled link/node keys.
+        const collectMergeLink: { [key: string]: any } = Object.create(null);
+        const removeNodeKeys: IStateCheckMap = Object.create(null);
+        const removeLinkKeys: IStateCheckMap = Object.create(null);
         // 각 링크를 조사하여 병합 가능한 조건을 가진 링크인지 검사하고
         // 조건에 부합하는 경우 [from.serviceType] 으로 링크를 모음.
         // 병합 할 링크를 모으는 작업
@@ -187,7 +192,7 @@ export class ServerMapData {
                 return;
             }
             if ((link.from in collectMergeLink) === false) {
-                collectMergeLink[link.from] = {};
+                collectMergeLink[link.from] = Object.create(null);
             }
             if ((link.targetInfo.serviceType in collectMergeLink[link.from]) === false) {
                 collectMergeLink[link.from][link.targetInfo.serviceType] = [];
@@ -300,9 +305,9 @@ export class ServerMapData {
         // [1] 일단 두번째 병합 조건에 해당하는 노드들을 추림
         // *: Node들 중에서 종단노드인데, 인입링크가 2이상인것들. 걔네를 서로 병합할수있는지 시도하는것인듯.
         const targetNodeList = this.getMergeTargetNodes();
-        const checkedNodes: IStateCheckMap = {};
-        const removeNodeKeys: IStateCheckMap = {};
-        const removeLinkKeys: IStateCheckMap = {};
+        const checkedNodes: IStateCheckMap = Object.create(null);
+        const removeNodeKeys: IStateCheckMap = Object.create(null);
+        const removeLinkKeys: IStateCheckMap = Object.create(null);
         if (targetNodeList.length <= 1) {
             // console.timeEnd('mergeMultiLinkGroup()');
             return;
@@ -319,8 +324,8 @@ export class ServerMapData {
             }
             checkedNodes[outerNodeKey] = true;
             const fromNodeKeysOfOuter: string[] = this.getFromNodeKeys(outerNodeKey); // * 타겟 노드들을 가리키고있는 fromNode들의 key
-            const mergeTargetLinks: { [key: string]: ILinkInfo[] } = {};
-            const mergeTargetLoopLinks: { [key: string]: ILinkInfo[] } = {};
+            const mergeTargetLinks: { [key: string]: ILinkInfo[] } = Object.create(null);
+            const mergeTargetLoopLinks: { [key: string]: ILinkInfo[] } = Object.create(null);
             const mergeTargetNodeList: INodeInfo[] = [];
 
             targetNodeList.forEach((innerNode: INodeInfo) => {
@@ -353,7 +358,7 @@ export class ServerMapData {
                 multiConnectNodeGroup.setGroupKey();
 
                 for (const fromKey in mergeTargetLinks) {
-                    if (mergeTargetLinks.hasOwnProperty(fromKey)) {
+                    if (Object.prototype.hasOwnProperty.call(mergeTargetLinks, fromKey)) {
                         multiConnectNodeGroup.addSubNodeGroup(fromKey);
                         const linkGroup = new LinkGroup(fromKey);
                         for (let i = 0; i < mergeTargetLinks[fromKey].length; i++) {
@@ -368,7 +373,7 @@ export class ServerMapData {
                     }
                 }
                 for (const fromKey in mergeTargetLoopLinks) {
-                    if (mergeTargetLoopLinks.hasOwnProperty(fromKey)) {
+                    if (Object.prototype.hasOwnProperty.call(mergeTargetLoopLinks, fromKey)) {
                         // multiConnectNodeGroup.addSubNodeGroup(multiConnectNodeGroup.getGroupKey());
                         const linkGroup = new LinkGroup(multiConnectNodeGroup.getGroupKey());
                         for (let i = 0; i < mergeTargetLoopLinks[fromKey].length; i++) {
@@ -462,7 +467,7 @@ export class ServerMapData {
     getGroupTypes(): Array<string> {
         const types: Array<string> = [];
         for (const type in this.groupServiceTypeMap) {
-            if (this.groupServiceTypeMap.hasOwnProperty(type)) {
+            if (Object.prototype.hasOwnProperty.call(this.groupServiceTypeMap, type)) {
                 types.push(type);
             }
         }
