@@ -4,6 +4,18 @@ import { getNodeSVGString } from '../ui/template/node';
 import { ServerMapProps } from '../ui';
 type GroupBySource = { [key: string]: string[] };
 
+// Property names that, if used as bracket-notation keys on a plain object,
+// can mutate Object.prototype (prototype pollution). The `source`, `target`
+// and `type` strings flowing through this module are derived from server
+// data, so we treat them as untrusted and reject these keys before they
+// reach any `obj[key] = ...` assignment.
+const UNSAFE_PROPERTY_KEYS: ReadonlySet<string> = new Set([
+  '__proto__',
+  'constructor',
+  'prototype',
+]);
+const isUnsafeKey = (key: string): boolean => UNSAFE_PROPERTY_KEYS.has(key);
+
 const mergeNodes = ({ nodes, edges }: { nodes: Node[]; edges: Edge[] }) => {
   const { single, multi } = groupEndNodesByTargetCount(nodes, edges);
 };
@@ -29,6 +41,9 @@ const groupEndNodesByTargetCount = (nodes: Node[], edges: Edge[]) => {
 
   // { t1: 3, t2: 2, t3: 4, t4: 1, t5: 1 }
   const targetIdAndCount = shouldMergeNodeIds.reduce<{ [key: string]: number }>((prev, curr) => {
+    if (isUnsafeKey(curr)) {
+      return prev;
+    }
     if (prev[curr]) {
       return { ...prev, [curr]: prev[curr] + 1 };
     } else {
@@ -51,6 +66,9 @@ const groupSingleTargetsBySource = (singleTargets: string[], edges: Edge[]) => {
   return singleTargets.reduce<{ [key: string]: string[] }>((prev, curr) => {
     const { source } = edges.find((edge) => edge.target === curr)!;
 
+    if (isUnsafeKey(source)) {
+      return prev;
+    }
     if (prev[source]) {
       prev[source].push(curr);
     } else {
@@ -69,6 +87,9 @@ const groupMultiTargetsBySource = (multiTargets: string[], edges: Edge[]) => {
       .sort()
       .toString();
 
+    if (isUnsafeKey(sourcesKey)) {
+      return prev;
+    }
     if (prev[sourcesKey]) {
       prev[sourcesKey].push(curr);
     } else {
@@ -82,22 +103,26 @@ const groupMultiTargetsBySource = (multiTargets: string[], edges: Edge[]) => {
 const groupByType = (groupBySource: GroupBySource, nodes: Node[]) => {
   return Object.entries(groupBySource).reduce<{ [key: string]: { [key: string]: string[] } }>(
     (prev, [source, targetIds]) => {
+      if (isUnsafeKey(source)) {
+        return prev;
+      }
       const result = { ...prev };
 
       targetIds.forEach((id) => {
         const node = nodes.find((n) => n.id === id);
 
+        if (!node?.type || isUnsafeKey(node.type)) {
+          return;
+        }
         if (result[source]) {
-          if (node?.type && result[source][node.type]) {
+          if (result[source][node.type]) {
             result[source][node.type].push(id);
-          } else if (node?.type) {
+          } else {
             result[source][node.type] = [id];
           }
         } else {
-          if (node?.type) {
-            result[source] = {};
-            result[source][node.type] = [id];
-          }
+          result[source] = {};
+          result[source][node.type] = [id];
         }
       });
       return result;
@@ -125,6 +150,9 @@ export const getMergedData = (
 
   // { t1: 3, t2: 2, t3: 4, t4: 1, t5: 1 }
   const targetIdAndCount = shouldMergeNodeIds.reduce<{ [key: string]: number }>((prev, curr) => {
+    if (isUnsafeKey(curr)) {
+      return prev;
+    }
     if (prev[curr]) {
       return { ...prev, [curr]: prev[curr] + 1 };
     } else {
@@ -149,6 +177,9 @@ export const getMergedData = (
   const groupBySourceOnSingle = groupByTargetCount.single.reduce<{ [key: string]: string[] }>((prev, curr) => {
     const { source } = edges.find((edge) => edge.target === curr)!;
 
+    if (isUnsafeKey(source)) {
+      return prev;
+    }
     if (prev[source]) {
       prev[source].push(curr);
     } else {
@@ -165,6 +196,9 @@ export const getMergedData = (
       .sort()
       .toString();
 
+    if (isUnsafeKey(sourcesKey)) {
+      return prev;
+    }
     if (prev[sourcesKey]) {
       prev[sourcesKey].push(curr);
     } else {
@@ -177,22 +211,26 @@ export const getMergedData = (
   const getGroupByType = (groupBySource: GroupBySource) =>
     Object.entries(groupBySource).reduce<{ [key: string]: { [key: string]: string[] } }>(
       (prev, [source, targetIds]) => {
+        if (isUnsafeKey(source)) {
+          return prev;
+        }
         const result = { ...prev };
 
         targetIds.forEach((id) => {
           const node = nodes.find((node) => node.id === id);
 
+          if (!node?.type || isUnsafeKey(node.type)) {
+            return;
+          }
           if (result[source]) {
-            if (node?.type && result[source][node.type]) {
+            if (result[source][node.type]) {
               result[source][node.type].push(id);
-            } else if (node?.type) {
+            } else {
               result[source][node.type] = [id];
             }
           } else {
-            if (node?.type) {
-              result[source] = {};
-              result[source][node.type] = [id];
-            }
+            result[source] = {};
+            result[source][node.type] = [id];
           }
         });
         return result;
@@ -286,6 +324,9 @@ export const getMergedData = (
             (edge) => !(sources.includes(edge.source) && targetIds.includes(edge.target)),
           );
           const newEdges = toMergeEdge.reduce<{ [key: string]: MergedEdge }>((prev, curr, i) => {
+            if (isUnsafeKey(curr.source)) {
+              return prev;
+            }
             if (prev[curr.source]) {
               prev[curr.source].edges!.push(curr);
             } else {
