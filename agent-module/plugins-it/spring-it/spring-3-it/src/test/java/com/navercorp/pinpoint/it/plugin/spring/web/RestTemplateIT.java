@@ -30,8 +30,8 @@ import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.client.AbstractClientHttpRequest;
+import org.springframework.http.client.ClientHttpRequestFactory;
 import org.springframework.http.client.HttpComponentsClientHttpRequestFactory;
-import org.springframework.http.client.Netty4ClientHttpRequestFactory;
 import org.springframework.web.client.RestTemplate;
 
 import static com.navercorp.pinpoint.bootstrap.plugin.test.Expectations.annotation;
@@ -92,7 +92,15 @@ public class RestTemplateIT {
 
     @Test
     public void test3() throws Exception {
-        RestTemplate restTemplate = new RestTemplate(new Netty4ClientHttpRequestFactory());
+        // Netty4ClientHttpRequestFactory was deprecated in Spring 5.x and removed in Spring 6.x.
+        // This module's compile-time spring-web is pinned to 6.1.21 to remediate critical CVEs
+        // in the EOL spring-web 4.3.30 (see this module's pom.xml). At runtime, Pinpoint's
+        // plugin test framework injects spring-web 4.x via the @Dependency annotation above,
+        // where the class still exists, so we resolve it reflectively to keep this regression
+        // test for older Spring users intact.
+        Class<?> factoryClass = Class.forName("org.springframework.http.client.Netty4ClientHttpRequestFactory");
+        ClientHttpRequestFactory factory = (ClientHttpRequestFactory) factoryClass.getDeclaredConstructor().newInstance();
+        RestTemplate restTemplate = new RestTemplate(factory);
         String forObject = restTemplate.getForObject(getAddress(), String.class);
 
         PluginTestVerifier verifier = PluginTestVerifierHolder.getInstance();

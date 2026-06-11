@@ -32,7 +32,26 @@
         <jdk.version>1.8</jdk.version>
         <jdk.home>${env.JAVA_8_HOME}</jdk.home>
         <spring.version>${spring4.version}</spring.version>
+        <!--
+            Spring 4.x is EOL and ships no patched spring-web release. Pin the
+            transitive spring-web pulled in by spring-webmvc 4.3.30 to the
+            nearest open-source patched line (6.1.x) to remediate critical CVEs
+            (e.g. CVE-2024-38816 / CVE-2025-41242). This module only runs as a
+            Pinpoint plugin integration test; surefire is skipped and failsafe
+            ignores test failures (see <build/> below).
+        -->
+        <spring-web-pin.version>6.1.21</spring-web-pin.version>
     </properties>
+
+    <dependencyManagement>
+        <dependencies>
+            <dependency>
+                <groupId>org.springframework</groupId>
+                <artifactId>spring-web</artifactId>
+                <version>${spring-web-pin.version}</version>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
 
     <dependencies>
         <dependency>
