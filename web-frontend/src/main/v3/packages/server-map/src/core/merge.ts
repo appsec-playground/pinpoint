@@ -4,6 +4,14 @@ import { getNodeSVGString } from '../ui/template/node';
 import { ServerMapProps } from '../ui';
 type GroupBySource = { [key: string]: string[] };
 
+// Guard against prototype pollution: user-controlled values from `edge.source`
+// and `node.type` are used as object property keys via bracket notation. Keys
+// that resolve to inherited properties on `Object.prototype` (e.g. "constructor",
+// "__proto__", "prototype") would otherwise allow an attacker to mutate the
+// global prototype chain. We refuse to treat these as legitimate map keys.
+const UNSAFE_PROPERTY_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
+const isUnsafeKey = (key: string): boolean => UNSAFE_PROPERTY_KEYS.has(key);
+
 const mergeNodes = ({ nodes, edges }: { nodes: Node[]; edges: Edge[] }) => {
   const { single, multi } = groupEndNodesByTargetCount(nodes, edges);
 };
@@ -82,27 +90,34 @@ const groupMultiTargetsBySource = (multiTargets: string[], edges: Edge[]) => {
 const groupByType = (groupBySource: GroupBySource, nodes: Node[]) => {
   return Object.entries(groupBySource).reduce<{ [key: string]: { [key: string]: string[] } }>(
     (prev, [source, targetIds]) => {
-      const result = { ...prev };
+      // Use a null-prototype object so untrusted `source`/`node.type` keys
+      // cannot reach inherited properties like `constructor` or `__proto__`.
+      const result = Object.assign(Object.create(null), prev);
+
+      if (isUnsafeKey(source)) {
+        return result;
+      }
 
       targetIds.forEach((id) => {
         const node = nodes.find((n) => n.id === id);
+        if (!node?.type || isUnsafeKey(node.type)) {
+          return;
+        }
 
         if (result[source]) {
-          if (node?.type && result[source][node.type]) {
+          if (result[source][node.type]) {
             result[source][node.type].push(id);
-          } else if (node?.type) {
+          } else {
             result[source][node.type] = [id];
           }
         } else {
-          if (node?.type) {
-            result[source] = {};
-            result[source][node.type] = [id];
-          }
+          result[source] = Object.create(null);
+          result[source][node.type] = [id];
         }
       });
       return result;
     },
-    {},
+    Object.create(null),
   );
 };
 
@@ -177,27 +192,34 @@ export const getMergedData = (
   const getGroupByType = (groupBySource: GroupBySource) =>
     Object.entries(groupBySource).reduce<{ [key: string]: { [key: string]: string[] } }>(
       (prev, [source, targetIds]) => {
-        const result = { ...prev };
+        // Use a null-prototype object so untrusted `source`/`node.type` keys
+        // cannot reach inherited properties like `constructor` or `__proto__`.
+        const result = Object.assign(Object.create(null), prev);
+
+        if (isUnsafeKey(source)) {
+          return result;
+        }
 
         targetIds.forEach((id) => {
           const node = nodes.find((node) => node.id === id);
+          if (!node?.type || isUnsafeKey(node.type)) {
+            return;
+          }
 
           if (result[source]) {
-            if (node?.type && result[source][node.type]) {
+            if (result[source][node.type]) {
               result[source][node.type].push(id);
-            } else if (node?.type) {
+            } else {
               result[source][node.type] = [id];
             }
           } else {
-            if (node?.type) {
-              result[source] = {};
-              result[source][node.type] = [id];
-            }
+            result[source] = Object.create(null);
+            result[source][node.type] = [id];
           }
         });
         return result;
       },
-      {},
+      Object.create(null),
     );
 
   const groupByTypeOnSingle = getGroupByType(groupBySourceOnSingle);
