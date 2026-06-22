@@ -4,6 +4,21 @@ import { getNodeSVGString } from '../ui/template/node';
 import { ServerMapProps } from '../ui';
 type GroupBySource = { [key: string]: string[] };
 
+// Reject keys that could be used to pollute Object.prototype when an
+// untrusted string is used in bracket-notation assignment such as
+// `obj[key] = value`. Server map node/edge data originates from a backend
+// API, so the `source`, `target`, and `type` fields must be treated as
+// untrusted input. See CWE-1321 (Prototype Pollution).
+const UNSAFE_OBJECT_KEYS = new Set<string>(['__proto__', 'constructor', 'prototype']);
+const isSafeObjectKey = (key: unknown): key is string =>
+  typeof key === 'string' && !UNSAFE_OBJECT_KEYS.has(key);
+
+// Create a dictionary-style object with no prototype chain so that even if
+// a prototype-polluting key slipped past validation, it could not reach
+// `Object.prototype`.
+const createSafeDict = <T>(): { [key: string]: T } =>
+  Object.create(null) as { [key: string]: T };
+
 const mergeNodes = ({ nodes, edges }: { nodes: Node[]; edges: Edge[] }) => {
   const { single, multi } = groupEndNodesByTargetCount(nodes, edges);
 };
@@ -29,12 +44,15 @@ const groupEndNodesByTargetCount = (nodes: Node[], edges: Edge[]) => {
 
   // { t1: 3, t2: 2, t3: 4, t4: 1, t5: 1 }
   const targetIdAndCount = shouldMergeNodeIds.reduce<{ [key: string]: number }>((prev, curr) => {
+    if (!isSafeObjectKey(curr)) {
+      return prev;
+    }
     if (prev[curr]) {
       return { ...prev, [curr]: prev[curr] + 1 };
     } else {
       return { ...prev, [curr]: 1 };
     }
-  }, {});
+  }, createSafeDict<number>());
 
   return Object.entries(targetIdAndCount).reduce<{ single: string[]; multi: string[] }>(
     (prev, [key, count]) => {
@@ -51,13 +69,16 @@ const groupSingleTargetsBySource = (singleTargets: string[], edges: Edge[]) => {
   return singleTargets.reduce<{ [key: string]: string[] }>((prev, curr) => {
     const { source } = edges.find((edge) => edge.target === curr)!;
 
+    if (!isSafeObjectKey(source)) {
+      return prev;
+    }
     if (prev[source]) {
       prev[source].push(curr);
     } else {
       prev[source] = [curr];
     }
     return prev;
-  }, {});
+  }, createSafeDict<string[]>());
 };
 
 // { source1: [t4, t5], source2: [t1, t2], source: [t3]}
@@ -69,13 +90,16 @@ const groupMultiTargetsBySource = (multiTargets: string[], edges: Edge[]) => {
       .sort()
       .toString();
 
+    if (!isSafeObjectKey(sourcesKey)) {
+      return prev;
+    }
     if (prev[sourcesKey]) {
       prev[sourcesKey].push(curr);
     } else {
       prev[sourcesKey] = [curr];
     }
     return prev;
-  }, {});
+  }, createSafeDict<string[]>());
 };
 
 // { source1: { type1: [t4, t5] }, source2: { type:2 [t1]} ...}
@@ -84,25 +108,30 @@ const groupByType = (groupBySource: GroupBySource, nodes: Node[]) => {
     (prev, [source, targetIds]) => {
       const result = { ...prev };
 
+      if (!isSafeObjectKey(source)) {
+        return result;
+      }
+
       targetIds.forEach((id) => {
         const node = nodes.find((n) => n.id === id);
+        if (!node?.type || !isSafeObjectKey(node.type)) {
+          return;
+        }
 
         if (result[source]) {
-          if (node?.type && result[source][node.type]) {
+          if (result[source][node.type]) {
             result[source][node.type].push(id);
-          } else if (node?.type) {
+          } else {
             result[source][node.type] = [id];
           }
         } else {
-          if (node?.type) {
-            result[source] = {};
-            result[source][node.type] = [id];
-          }
+          result[source] = createSafeDict<string[]>();
+          result[source][node.type] = [id];
         }
       });
       return result;
     },
-    {},
+    createSafeDict<{ [key: string]: string[] }>(),
   );
 };
 
@@ -125,12 +154,15 @@ export const getMergedData = (
 
   // { t1: 3, t2: 2, t3: 4, t4: 1, t5: 1 }
   const targetIdAndCount = shouldMergeNodeIds.reduce<{ [key: string]: number }>((prev, curr) => {
+    if (!isSafeObjectKey(curr)) {
+      return prev;
+    }
     if (prev[curr]) {
       return { ...prev, [curr]: prev[curr] + 1 };
     } else {
       return { ...prev, [curr]: 1 };
     }
-  }, {});
+  }, createSafeDict<number>());
 
   // { single: [t4, t5], multi: [t1, t2, t3] }
   const groupByTargetCount = Object.entries(targetIdAndCount).reduce<{
@@ -149,13 +181,16 @@ export const getMergedData = (
   const groupBySourceOnSingle = groupByTargetCount.single.reduce<{ [key: string]: string[] }>((prev, curr) => {
     const { source } = edges.find((edge) => edge.target === curr)!;
 
+    if (!isSafeObjectKey(source)) {
+      return prev;
+    }
     if (prev[source]) {
       prev[source].push(curr);
     } else {
       prev[source] = [curr];
     }
     return prev;
-  }, {});
+  }, createSafeDict<string[]>());
 
   // { source1: [t4, t5], source2: [t1, t2], source: [t3]}
   const groupBySourceOnMulti = groupByTargetCount.multi.reduce<{ [key: string]: string[] }>((prev, curr) => {
@@ -165,13 +200,16 @@ export const getMergedData = (
       .sort()
       .toString();
 
+    if (!isSafeObjectKey(sourcesKey)) {
+      return prev;
+    }
     if (prev[sourcesKey]) {
       prev[sourcesKey].push(curr);
     } else {
       prev[sourcesKey] = [curr];
     }
     return prev;
-  }, {});
+  }, createSafeDict<string[]>());
 
   // { source1: { type1: [t4, t5] }, source2: { type:2 [t1]} ...}
   const getGroupByType = (groupBySource: GroupBySource) =>
@@ -179,25 +217,30 @@ export const getMergedData = (
       (prev, [source, targetIds]) => {
         const result = { ...prev };
 
+        if (!isSafeObjectKey(source)) {
+          return result;
+        }
+
         targetIds.forEach((id) => {
           const node = nodes.find((node) => node.id === id);
+          if (!node?.type || !isSafeObjectKey(node.type)) {
+            return;
+          }
 
           if (result[source]) {
-            if (node?.type && result[source][node.type]) {
+            if (result[source][node.type]) {
               result[source][node.type].push(id);
-            } else if (node?.type) {
+            } else {
               result[source][node.type] = [id];
             }
           } else {
-            if (node?.type) {
-              result[source] = {};
-              result[source][node.type] = [id];
-            }
+            result[source] = createSafeDict<string[]>();
+            result[source][node.type] = [id];
           }
         });
         return result;
       },
-      {},
+      createSafeDict<{ [key: string]: string[] }>(),
     );
 
   const groupByTypeOnSingle = getGroupByType(groupBySourceOnSingle);
@@ -286,6 +329,9 @@ export const getMergedData = (
             (edge) => !(sources.includes(edge.source) && targetIds.includes(edge.target)),
           );
           const newEdges = toMergeEdge.reduce<{ [key: string]: MergedEdge }>((prev, curr, i) => {
+            if (!isSafeObjectKey(curr.source)) {
+              return prev;
+            }
             if (prev[curr.source]) {
               prev[curr.source].edges!.push(curr);
             } else {
@@ -297,7 +343,7 @@ export const getMergedData = (
               };
             }
             return { ...prev };
-          }, {});
+          }, createSafeDict<MergedEdge>());
 
           mergedEdges = [...notToMergeEdge, ...Object.values(newEdges)];
         }
