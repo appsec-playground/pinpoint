@@ -49,6 +49,59 @@
                     <groupId>ch.qos.logback</groupId>
                     <artifactId>logback-classic</artifactId>
                 </exclusion>
+                <!--
+                  The HTTP management plugin (and the websocket plugin) drag in a vulnerable
+                  Jetty 8.1.17 stack (org.eclipse.jetty:jetty-server, jetty-http, jetty-util,
+                  jetty-io, jetty-security, jetty-servlet, jetty-servlets, jetty-continuation,
+                  jetty-websocket). These integration tests start the QPID broker in AMQP-only
+                  mode (see src/test/resources/rabbitmq/qpid/qpid-config.json) and never expose
+                  the HTTP management UI or websocket endpoints, so the entire Jetty chain is
+                  unused and can be excluded to remediate the critical CVEs.
+                -->
+                <exclusion>
+                    <groupId>org.apache.qpid</groupId>
+                    <artifactId>qpid-broker-plugins-management-http</artifactId>
+                </exclusion>
+                <exclusion>
+                    <groupId>org.apache.qpid</groupId>
+                    <artifactId>qpid-broker-plugins-websocket</artifactId>
+                </exclusion>
+                <exclusion>
+                    <groupId>org.eclipse.jetty</groupId>
+                    <artifactId>jetty-server</artifactId>
+                </exclusion>
+                <exclusion>
+                    <groupId>org.eclipse.jetty</groupId>
+                    <artifactId>jetty-http</artifactId>
+                </exclusion>
+                <exclusion>
+                    <groupId>org.eclipse.jetty</groupId>
+                    <artifactId>jetty-util</artifactId>
+                </exclusion>
+                <exclusion>
+                    <groupId>org.eclipse.jetty</groupId>
+                    <artifactId>jetty-io</artifactId>
+                </exclusion>
+                <exclusion>
+                    <groupId>org.eclipse.jetty</groupId>
+                    <artifactId>jetty-security</artifactId>
+                </exclusion>
+                <exclusion>
+                    <groupId>org.eclipse.jetty</groupId>
+                    <artifactId>jetty-servlet</artifactId>
+                </exclusion>
+                <exclusion>
+                    <groupId>org.eclipse.jetty</groupId>
+                    <artifactId>jetty-servlets</artifactId>
+                </exclusion>
+                <exclusion>
+                    <groupId>org.eclipse.jetty</groupId>
+                    <artifactId>jetty-continuation</artifactId>
+                </exclusion>
+                <exclusion>
+                    <groupId>org.eclipse.jetty</groupId>
+                    <artifactId>jetty-websocket</artifactId>
+                </exclusion>
             </exclusions>
         </dependency>
         <dependency>
