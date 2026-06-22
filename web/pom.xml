@@ -31,7 +31,34 @@
     <properties>
         <jdk.version>17</jdk.version>
         <jdk.home>${env.JAVA_17_HOME}</jdk.home>
+        <!-- Pin tomcat-embed-core to a patched version to address transitive CVEs
+             pulled in via spring-boot-starter-tomcat. See:
+             https://tomcat.apache.org/security-10.html -->
+        <tomcat-embed.version>10.1.55</tomcat-embed.version>
     </properties>
+
+    <dependencyManagement>
+        <dependencies>
+            <!-- Override the transitive tomcat-embed-core version brought in by
+                 spring-boot-starter-tomcat (Spring Boot 3.3.5 ships 10.1.31, which
+                 has critical CVEs). Pin to the latest patched 10.1.x release. -->
+            <dependency>
+                <groupId>org.apache.tomcat.embed</groupId>
+                <artifactId>tomcat-embed-core</artifactId>
+                <version>${tomcat-embed.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.apache.tomcat.embed</groupId>
+                <artifactId>tomcat-embed-el</artifactId>
+                <version>${tomcat-embed.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.apache.tomcat.embed</groupId>
+                <artifactId>tomcat-embed-websocket</artifactId>
+                <version>${tomcat-embed.version}</version>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
 
     <dependencies>
         <dependency>
