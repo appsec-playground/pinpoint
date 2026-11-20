@@ -16,6 +16,7 @@
     <properties>
         <maven.compiler.source>8</maven.compiler.source>
         <maven.compiler.target>8</maven.compiler.target>
+        <fastxml.jackson.version>2.18.12</fastxml.jackson.version>
         <pinpoint.agent.jvmargument>
             ${pinpoint.agent.default.jvmargument}
             -Dprofiler.rocketmq.producer.enable=true
